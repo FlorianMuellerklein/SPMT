@@ -1,4 +1,6 @@
 from sys import maxsize
+
+from requests import JSONDecodeError
 from torch import Tensor
 
 import torch
@@ -15,7 +17,13 @@ class SPMTLoss(nn.Module):
 
         self.class_crit = nn.CrossEntropyLoss(size_average='mean', ignore_index=-1)
 
-    def forward(self, pred: Tensor, targ_class: Tensor, ema_logit: Tensor):
+    def forward(
+        self,
+        pred: Tensor,
+        targ_class: Tensor,
+        ema_logit: Tensor,
+        aug_pred: Tensor
+    ):
         n = pred[0].size(0)
         n_class = pred[0].size(1)
 
@@ -51,9 +59,14 @@ class SPMTLoss(nn.Module):
         else:
             unsupervised_loss = torch.tensor([0.]).to(pred[0].device)
 
+        if self.cfg.jsd and aug_pred is not None:
+            jsd_loss = 12. * self.jsd_loss(pred[0], aug_pred[0])
+        else:
+            jsd_loss = torch.tensor([0.]).to(pred[0].device)
+
         res_loss = 0.01 * self.symmetric_mse_loss(pred[0], pred[1])
 
-        return supervised_loss, unsupervised_loss, res_loss
+        return supervised_loss, unsupervised_loss, res_loss, jsd_loss
 
     def update_sp_threshold(self, e: int):
         self.loss_proportion = min(1., e / (self.cfg.epochs / 4))
@@ -61,13 +74,20 @@ class SPMTLoss(nn.Module):
     def entropy(self, dist):
         return -1 * torch.sum((dist + 1e-8) * torch.log(dist + 1e-8), axis=-1)
 
-    def symmetric_mse_loss(self, input1, input2):
-        """Like F.mse_loss but sends gradients to both directions
-        Note:
-        - Returns the sum over all examples. Divide by the batch size afterwards
-        if you want the mean.
-        - Sends gradients to both input1 and input2.
-        """
-        assert input1.size() == input2.size()
+    def symmetric_mse_loss(self, input_a, input_b):
+        assert input_a.size() == input_b.size()
 
-        return torch.mean((input1 - input2)**2)
+        return torch.mean((input_a - input_b)**2)
+
+    def jsd_loss(self, input_a, input_b):
+
+        kl_targ = (F.softmax(input_a, -1) + F.softmax(input_b, -1)) / 2.
+
+        kl_sum = (
+            F.kl_div(F.log_softmax(input_a, -1), kl_targ ,reduction='batchmean') +
+            F.kl_div(F.log_softmax(input_b, -1), kl_targ ,reduction='batchmean')
+        )
+
+        jsd_loss = 0.5 * (kl_sum)
+
+        return jsd_loss

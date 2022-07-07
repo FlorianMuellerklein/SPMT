@@ -37,8 +37,8 @@ parser.add_argument(
 parser.add_argument('--spl', action='store_true',
     help = 'whether to use self paced learning'
 )
-parser.add_argument('--tempens', action='store_true',
-    help = 'whether to use temporal ensembling'
+parser.add_argument('--jsd', action='store_true',
+    help = 'whether to use jsd for augmentation view consistency'
 )
 parser.add_argument('--mt', action='store_true',
     help = 'whether to use mean teacher training'
@@ -76,7 +76,7 @@ def main():
         net.parameters(),
         lr = args.lr,
         momentum = 0.9,
-        weight_decay = 0.0002,
+        weight_decay = 0.0002 * (args.batch_size / 128),
         nesterov = True
     )
 
@@ -111,7 +111,7 @@ def main():
     runner.train_network()
 
     training_type = 'mt' if args.mt else 'vanilla'
-    training_type = training_type + '_tempens' if args.tempens else ''
+    training_type = training_type + '_jsd' if args.jsd else ''
     training_type = training_type + '_spl' if args.spl else ''
 
     df_acc = pd.DataFrame(runner.accuracies)

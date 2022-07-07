@@ -140,16 +140,19 @@ class CNNTrainer:
 
                 with torch.no_grad():
                     ema_logit, _ = self.teacher(ema_imgs)
+
+                aug_preds = self.student(ema_imgs)
             else:
                 ema_logit = None
+                aug_preds = None
 
             # get predictions
             preds = self.student(imgs)
 
             # calculate loss
-            supervised_loss, consistency_loss, res_loss = self.crit(preds, targets, ema_logit)
+            supervised_loss, consistency_loss, res_loss, jsd_loss = self.crit(preds, targets, ema_logit, aug_preds)
 
-            loss = supervised_loss + consistency_loss + res_loss
+            loss = supervised_loss + consistency_loss + res_loss + jsd_loss
 
             running_unsup_loss += consistency_loss.item()
 
