@@ -76,7 +76,7 @@ def main():
         net.parameters(),
         lr = args.lr,
         momentum = 0.9,
-        weight_decay = 0.0002 * (args.batch_size / 128),
+        weight_decay = 0.0001 / (args.batch_size / 128), # reduce wd if LR and BS goes up
         nesterov = True
     )
 

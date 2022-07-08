@@ -71,7 +71,7 @@ class SemiSupervisedDataset(Dataset):
         }
 
     def __len__(self):
-        return int(len(self.dataset) * (1. + self.balance_rate))
+        return len(self.dataset)
 
 def balanced_class_split(labeld_targs: np.array) -> Tuple[np.array, np.array]:
     labels = np.array(labeld_targs)

@@ -50,26 +50,24 @@ class SPMTLoss(nn.Module):
                 size_average='mean'
             )
 
-            max_lamb = 100.
-            unsup_lambda = min(max_lamb, (float(self.iterations) / self.warmup_iterations) * max_lamb)
-            self.iterations += 1
-
+            unsup_lambda = 100. * self.rampup()
             unsupervised_loss = unsup_lambda * unsupervised_loss
-            #unsupervised_loss = (unsupervised_loss.mean(-1) *  mask).sum() / mask.sum()
         else:
             unsupervised_loss = torch.tensor([0.]).to(pred[0].device)
 
         if self.cfg.jsd and aug_pred is not None:
-            jsd_loss = 12. * self.jsd_loss(pred[0], aug_pred[0])
+            jsd_loss = (12. * self.rampup()) * self.jsd_loss(pred[0], aug_pred[0])
         else:
             jsd_loss = torch.tensor([0.]).to(pred[0].device)
 
         res_loss = 0.01 * self.symmetric_mse_loss(pred[0], pred[1])
 
+        self.iterations += 1
+
         return supervised_loss, unsupervised_loss, res_loss, jsd_loss
 
-    def update_sp_threshold(self, e: int):
-        self.loss_proportion = min(1., e / (self.cfg.epochs / 4))
+    def rampup(self):
+        return min(1., (float(self.iterations) / self.warmup_iterations))
 
     def entropy(self, dist):
         return -1 * torch.sum((dist + 1e-8) * torch.log(dist + 1e-8), axis=-1)
@@ -84,8 +82,8 @@ class SPMTLoss(nn.Module):
         kl_targ = (F.softmax(input_a, -1) + F.softmax(input_b, -1)) / 2.
 
         kl_sum = (
-            F.kl_div(F.log_softmax(input_a, -1), kl_targ ,reduction='batchmean') +
-            F.kl_div(F.log_softmax(input_b, -1), kl_targ ,reduction='batchmean')
+            F.kl_div(F.log_softmax(input_a, -1), kl_targ.detach(), reduction='batchmean') +
+            F.kl_div(F.log_softmax(input_b, -1), kl_targ.detach(), reduction='batchmean')
         )
 
         jsd_loss = 0.5 * (kl_sum)
