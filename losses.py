@@ -14,7 +14,7 @@ class SPMTLoss(nn.Module):
         self.iterations = 0.
         self.warmup_iterations = warmup_iterations
 
-        self.class_crit = nn.CrossEntropyLoss(size_average='mean', ignore_index=-1)
+        self.class_crit = nn.CrossEntropyLoss(size_average='mean', ignore_index=-1, label_smoothing = 0.1)
 
     def forward(
         self,
@@ -33,19 +33,33 @@ class SPMTLoss(nn.Module):
             unsupervised_loss = F.mse_loss(
                 F.softmax(pred[1], -1),
                 F.softmax(ema_logit, -1),
-                size_average='mean'
+                size_average='none'
             )
+            # unsupervised_loss = F.cross_entropy(
+            #     pred[1],
+            #     torch.argmax(ema_logit, -1),
+            #     size_average='none',
+            #     label_smoothing = 0.1
+            # )
 
-            with torch.no_grad():
-                unsup_lambda = supervised_loss.item() / (unsupervised_loss.item() + 1e-8)
+            if self.cfg.spl:
+                entropy = torch.special.entr(F.softmax(ema_logit,-1)).sum(-1)
+                attn = F.softmax(-entropy, -1)
 
-            unsup_lambda = unsup_lambda * self.rampup()
+                unsupervised_loss = (unsupervised_loss.mean(-1) * attn).sum()
+            else:
+                unsupervised_loss = unsupervised_loss.mean()
+
+            #with torch.no_grad():
+            #    unsup_lambda = supervised_loss.item() / (unsupervised_loss.item() + 1e-8)
+
+            unsup_lambda = 100. * self.rampup()
             unsupervised_loss = unsup_lambda * unsupervised_loss
         else:
             unsupervised_loss = torch.tensor([0.]).to(pred[0].device)
 
         if self.cfg.jsd and aug_pred is not None:
-            jsd_loss = self.rampup() * self.jsd_loss(pred[0], aug_pred[0])
+            jsd_loss = 12. * self.rampup() * self.jsd_loss(pred[0], aug_pred[0])
         else:
             jsd_loss = torch.tensor([0.]).to(pred[0].device)
 

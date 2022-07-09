@@ -23,7 +23,7 @@ parser.add_argument(
     help = 'number of epochs warmup learning rate'
 )
 parser.add_argument(
-    '--batch_size', default=128, type=int,
+    '--batch_size', default=64, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
@@ -53,7 +53,7 @@ args = parser.parse_args()
 
 def main():
     # linearly scale learning rate with batch size
-    args.lr = args.lr * (args.batch_size / 128)
+    args.lr = args.lr * (args.batch_size / 64)
 
     device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
@@ -79,7 +79,7 @@ def main():
         net.parameters(),
         lr = args.lr,
         momentum = 0.9,
-        weight_decay = 0.0001 / (args.batch_size / 128), # reduce wd if LR and BS goes up
+        weight_decay = 0.0001 / (args.batch_size / 64), # reduce wd if LR and BS goes up
         nesterov = True
     )
 
