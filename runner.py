@@ -12,7 +12,7 @@ from torchvision.utils import make_grid
 
 import matplotlib.pyplot as plt
 
-class CNNTrainer:
+class MTTrainer:
     def __init__(
         self,
         train_loader: torch.utils.data.DataLoader = None,
@@ -189,12 +189,14 @@ class CNNTrainer:
 
             # make a cool terminal output
             sys.stdout.write('\r')
-            sys.stdout.write('{} B: {:>3}/{:<3} | Class Loss: {:.4} | Cons Loss: {:.4}'.format(
+            sys.stdout.write('{} B: {:>3}/{:<3} | Class: {:.3} | Cons: {:.3} | Res: {:.3} | JSD: {:.3}'.format(
                 mode,
                 i+1,
                 n_batches,
                 supervised_loss.item(),
                 consistency_loss.item(),
+                res_loss.item(),
+                jsd_loss.item()
             ))
             sys.stdout.flush()
 

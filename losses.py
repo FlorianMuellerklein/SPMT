@@ -8,12 +8,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class SPMTLoss(nn.Module):
-    def __init__(self, cfg, loss_proportion = 0.0):
+    def __init__(self, cfg, warmup_iterations):
         super(SPMTLoss, self).__init__()
         self.cfg = cfg
-        self.loss_proportion = loss_proportion
         self.iterations = 0.
-        self.warmup_iterations = 5. * 89
+        self.warmup_iterations = warmup_iterations
 
         self.class_crit = nn.CrossEntropyLoss(size_average='mean', ignore_index=-1)
 
@@ -31,32 +30,22 @@ class SPMTLoss(nn.Module):
 
         if (ema_logit is not None):
 
-            mask = torch.ones(n).long().to(pred[0].device)
-
-            # if self paced learning we'll use attention over entropy to scale consistency loss
-            # if self.cfg.spl:
-            #     with torch.no_grad():
-            #         # sort with entropy of temporal ensemble
-            #         tempens_entorpy = torch.special.entr(torch.softmax(ema_logit, -1)).sum(-1)
-            #         _, indices = torch.sort(tempens_entorpy)
-            #         # choose the lowest k% of entropy
-            #         chosen_indices = indices[:int(n * perc_take)]
-            #         # apply hards attention over entropy
-            #         mask[~chosen_indices] = 0
-
             unsupervised_loss = F.mse_loss(
                 F.softmax(pred[1], -1),
                 F.softmax(ema_logit, -1),
                 size_average='mean'
             )
 
-            unsup_lambda = 100. * self.rampup()
+            with torch.no_grad():
+                unsup_lambda = supervised_loss.item() / (unsupervised_loss.item() + 1e-8)
+
+            unsup_lambda = unsup_lambda * self.rampup()
             unsupervised_loss = unsup_lambda * unsupervised_loss
         else:
             unsupervised_loss = torch.tensor([0.]).to(pred[0].device)
 
         if self.cfg.jsd and aug_pred is not None:
-            jsd_loss = (12. * self.rampup()) * self.jsd_loss(pred[0], aug_pred[0])
+            jsd_loss = self.rampup() * self.jsd_loss(pred[0], aug_pred[0])
         else:
             jsd_loss = torch.tensor([0.]).to(pred[0].device)
 

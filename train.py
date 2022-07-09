@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from model import ResNet
-from runner import CNNTrainer
+from runner import MTTrainer
 from losses import SPMTLoss
 from data_loader import get_data_loaders
 
@@ -70,7 +70,10 @@ def main():
     )
 
     # set up training loss and optimizer (using params from resnet paper)
-    criterion = SPMTLoss(cfg = args) # nn.KLDivLoss(reduction='batchmean')
+    criterion = SPMTLoss(
+        cfg = args,
+        warmup_iterations = 5. * len(train_loader)
+    )
 
     optimizer = optim.SGD(
         net.parameters(),
@@ -94,7 +97,7 @@ def main():
     )
 
     # set up our trainer
-    runner = CNNTrainer(
+    runner = MTTrainer(
         train_loader = train_loader,
         valid_loader = valid_loader,
         test_loader = test_loader,
