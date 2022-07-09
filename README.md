@@ -4,4 +4,4 @@ This repo test the addition of self-paced learning to [Robust Temporal Ensemblin
 
 ![](imgs/decision_bounds.png)
 
-Example decision boundaries on the two moon dataset with only 6 labeled data points per class.
+Example decision boundaries on the two moon dataset with only 8 labeled data points per class.
