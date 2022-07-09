@@ -14,7 +14,7 @@ class SPMTLoss(nn.Module):
         self.iterations = 0.
         self.warmup_iterations = warmup_iterations
 
-        self.class_crit = nn.CrossEntropyLoss(size_average='mean', ignore_index=-1, label_smoothing = 0.1)
+        self.class_crit = nn.CrossEntropyLoss(reduction='mean', ignore_index=-1, label_smoothing = 0.1)
 
     def forward(
         self,
@@ -33,7 +33,7 @@ class SPMTLoss(nn.Module):
             unsupervised_loss = F.mse_loss(
                 F.softmax(pred[1], -1),
                 F.softmax(ema_logit, -1),
-                size_average='none'
+                reduction='none'
             )
             # unsupervised_loss = F.cross_entropy(
             #     pred[1],
@@ -43,10 +43,23 @@ class SPMTLoss(nn.Module):
             # )
 
             if self.cfg.spl:
-                entropy = torch.special.entr(F.softmax(ema_logit,-1)).sum(-1)
-                attn = F.softmax(-entropy, -1)
+                #entropy = torch.special.entr(F.softmax(ema_logit,-1)).sum(-1)
+                #attn = F.softmax(-entropy, -1)
+                #unsupervised_loss = (unsupervised_loss.mean(-1) * attn).sum()
 
-                unsupervised_loss = (unsupervised_loss.mean(-1) * attn).sum()
+                # using the strategy from Dash: https://arxiv.org/pdf/2109.00650v1.pdf
+
+                labeled_mask = targ_class.ne(-1)
+                if labeled_mask.sum() > 0:
+                    with torch.no_grad():
+                        loss_threshold = unsupervised_loss[labeled_mask].mean()
+
+                        # only keep unsupervised loss below this threshold
+                        unsup_mask = unsupervised_loss.mean(-1) < loss_threshold
+                else:
+                    unsup_mask = torch.zeros(unsupervised_loss.size(0))
+
+                unsupervised_loss = unsupervised_loss[unsup_mask].mean()
             else:
                 unsupervised_loss = unsupervised_loss.mean()
 
