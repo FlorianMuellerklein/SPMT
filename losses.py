@@ -26,7 +26,7 @@ class SPMTLoss(nn.Module):
         n = pred[0].size(0)
         n_class = pred[0].size(1)
 
-        supervised_loss = self.class_crit(pred[0], targ_class)
+        supervised_loss = 0. + self.class_crit(pred[0], targ_class)
 
         if (ema_logit is not None):
 
@@ -48,7 +48,6 @@ class SPMTLoss(nn.Module):
                 #unsupervised_loss = (unsupervised_loss.mean(-1) * attn).sum()
 
                 # using the strategy from Dash: https://arxiv.org/pdf/2109.00650v1.pdf
-
                 labeled_mask = targ_class.ne(-1)
                 if labeled_mask.sum() > 0:
                     with torch.no_grad():
@@ -59,7 +58,7 @@ class SPMTLoss(nn.Module):
                 else:
                     unsup_mask = torch.zeros(unsupervised_loss.size(0))
 
-                unsupervised_loss = unsupervised_loss[unsup_mask].mean()
+                unsupervised_loss = unsupervised_loss[unsup_mask.long()].mean()
             else:
                 unsupervised_loss = unsupervised_loss.mean()
 
