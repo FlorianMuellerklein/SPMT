@@ -36,16 +36,13 @@ parser.add_argument(
 parser.add_argument('--spl', action='store_true',
     help = 'whether to use self paced learning'
 )
-parser.add_argument('--jsd', action='store_true',
-    help = 'whether to use jsd for augmentation view consistency'
-)
 parser.add_argument('--mt', action='store_true',
     help = 'whether to use mean teacher training'
 )
 parser.add_argument('--debug', action='store_true',
     help = 'whether to use soft pseudo labels training'
 )
-parser.add_argument('--model_name', type=str, default='MT',
+parser.add_argument('--model_name', type=str, default='ResNet56',
     help = 'model name for saving experiment results'
 )
 args = parser.parse_args()
@@ -114,7 +111,6 @@ def main():
     runner.train_network()
 
     training_type = 'mt' if args.mt else 'vanilla'
-    training_type = training_type + '_jsd' if args.jsd else ''
     training_type = training_type + '_spl' if args.spl else ''
 
     df_acc = pd.DataFrame(runner.accuracies)
