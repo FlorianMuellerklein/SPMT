@@ -3,7 +3,6 @@ import argparse
 import pandas as pd
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 
 from model import ResNet
@@ -23,11 +22,11 @@ parser.add_argument(
     help = 'number of epochs warmup learning rate'
 )
 parser.add_argument(
-    '--batch_size', default=64, type=int,
+    '--batch_size', default=128, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
-    '--epochs', default=300, type=int,
+    '--epochs', default=350, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
@@ -53,11 +52,11 @@ args = parser.parse_args()
 
 def main():
     # linearly scale learning rate with batch size
-    args.lr = args.lr * (args.batch_size / 64)
+    args.lr = args.lr * (args.batch_size / 128)
 
     device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
-    # set up network
+    # set up networks
     net = ResNet(n=9)
     net = net.to(device)
 
@@ -72,14 +71,15 @@ def main():
     # set up training loss and optimizer (using params from resnet paper)
     criterion = SPMTLoss(
         cfg = args,
-        warmup_iterations = 5. * len(train_loader)
+        warmup_iterations = 10. * len(train_loader),
+        total_iterations = args.epochs * len(train_loader)
     )
 
     optimizer = optim.SGD(
         net.parameters(),
         lr = args.lr,
         momentum = 0.9,
-        weight_decay = 0.0001 / (args.batch_size / 64), # reduce wd if LR and BS goes up
+        weight_decay = 0.00005 / (args.batch_size / 128), # reduce wd if LR and BS goes up
         nesterov = True
     )
 

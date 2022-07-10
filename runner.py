@@ -1,7 +1,6 @@
 
 import sys
 import time
-import copy
 import argparse
 
 import numpy as np
@@ -139,7 +138,7 @@ class MTTrainer:
                 # plt.show()
 
                 with torch.no_grad():
-                    ema_logit, _ = self.teacher(ema_imgs)
+                    ema_logit = self.teacher(ema_imgs)
 
                 aug_preds = self.student(ema_imgs)
             else:
@@ -150,21 +149,9 @@ class MTTrainer:
             preds = self.student(imgs)
 
             # calculate loss
-            supervised_loss, consistency_loss, res_loss, jsd_loss = self.crit(preds, targets, ema_logit, aug_preds)
+            supervised_loss, consistency_loss, jsd_loss = self.crit(preds, targets, ema_logit, aug_preds)
 
-            loss = supervised_loss + consistency_loss + res_loss + jsd_loss
-
-            running_unsup_loss += consistency_loss.item()
-
-            # track classification accuracy
-            predicted = torch.argmax(preds[0], 1)
-            mask = targets.ne(-1)
-            total = max(mask.sum().item(), 1e-8)
-            correct = (predicted[mask] == targets[mask]).sum().item()
-
-            running_loss += loss.item()
-            running_total += total
-            running_corrects += correct
+            loss = supervised_loss + consistency_loss + jsd_loss
 
             if mode == 'train':
 
@@ -186,16 +173,27 @@ class MTTrainer:
                     # update teacher
                     self.update_teacher()
 
+            # track statistics
+            predicted = torch.argmax(preds, 1)
+            mask = targets.ne(-1)
+            total = max(mask.sum().item(), 1e-8)
+            correct = (predicted[mask] == targets[mask]).sum().item()
+
+            running_loss += supervised_loss.item()
+            running_unsup_loss += consistency_loss.item()
+            running_total += total
+            running_corrects += correct
+
 
             # make a cool terminal output
             sys.stdout.write('\r')
-            sys.stdout.write('{} B: {:>3}/{:<3} | Class: {:.3} | Cons: {:.3} | Res: {:.3} | JSD: {:.3}'.format(
+            sys.stdout.write('{} B: {:>3}/{:<3} | Class: {:.3} | Cons: {:.3} | JSD: {:.3}'.format(
                 mode,
                 i+1,
                 n_batches,
                 supervised_loss.item(),
                 consistency_loss.item(),
-                res_loss.item(),
+                #res_loss.item(),
                 jsd_loss.item()
             ))
             sys.stdout.flush()
@@ -207,7 +205,7 @@ class MTTrainer:
                     break
 
         print(
-            '\n' + 'Avg Loss: {:.4}  Acc: {:.2} | Unsup Loss: {:.4}'.format(
+            '\n' + 'Avg Class: {:.4} | Acc: {:.2} | Unsup Loss: {:.4}'.format(
                 running_loss / n_batches,
                 running_corrects / running_total,
                 running_unsup_loss / n_batches

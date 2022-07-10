@@ -1,8 +1,5 @@
-from xml.etree.ElementPath import xpath_tokenizer
 import torch
 import torch.nn as nn
-
-from torchvision import models
 
 def make_layer(
     in_channels: int,
@@ -136,7 +133,7 @@ class ResNet(nn.Module):
 
         self.dropout = nn.Dropout(0.5)
         self.classification_out = torch.nn.Linear(64, 10)
-        self.consistency_out = torch.nn.Linear(64, 10)
+        #self.consistency_out = torch.nn.Linear(64, 10)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
@@ -153,9 +150,9 @@ class ResNet(nn.Module):
 
         # decoupled classification and consistency
         classification_out = self.classification_out(x)
-        consistency_out = self.consistency_out(x)
+        #consistency_out = self.consistency_out(x)
 
-        return classification_out, consistency_out
+        return classification_out#, consistency_out
 
     def enable_dropout(self):
         """ Function to enable the dropout layers during test-time """
