@@ -140,18 +140,18 @@ class MTTrainer:
                 with torch.no_grad():
                     ema_logit = self.teacher(ema_imgs)
 
-                aug_preds = self.student(ema_imgs)
+                #aug_preds = self.student(ema_imgs)
             else:
                 ema_logit = None
-                aug_preds = None
+                #aug_preds = None
 
             # get predictions
             preds = self.student(imgs)
 
             # calculate loss
-            supervised_loss, consistency_loss, jsd_loss = self.crit(preds, targets, ema_logit, aug_preds)
+            supervised_loss, cons_loss, pseudo_loss = self.crit(preds, targets, ema_logit)
 
-            loss = supervised_loss + consistency_loss + jsd_loss
+            loss = supervised_loss + cons_loss + pseudo_loss
 
             if mode == 'train':
 
@@ -180,21 +180,21 @@ class MTTrainer:
             correct = (predicted[mask] == targets[mask]).sum().item()
 
             running_loss += supervised_loss.item()
-            running_unsup_loss += consistency_loss.item()
+            running_unsup_loss += cons_loss.item()
             running_total += total
             running_corrects += correct
 
 
             # make a cool terminal output
             sys.stdout.write('\r')
-            sys.stdout.write('{} B: {:>3}/{:<3} | Class: {:.3} | Cons: {:.3} | JSD: {:.3}'.format(
+            sys.stdout.write('{} B: {:>3}/{:<3} | Class: {:.3} | Cons: {:.3} | CPL: {:.3}'.format(
                 mode,
                 i+1,
                 n_batches,
                 supervised_loss.item(),
-                consistency_loss.item(),
+                cons_loss.item(),
                 #res_loss.item(),
-                jsd_loss.item()
+                pseudo_loss.item()
             ))
             sys.stdout.flush()
 
