@@ -6,10 +6,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class SPMTLoss(nn.Module):
-    def __init__(self, cfg, ecr_warmup_iterations, cpl_warmup_iterations, total_iterations, cons_lambda = 100.):
+    def __init__(
+            self,
+            cfg,
+            ecr_warmup_iterations,
+            cpl_warmup_iterations,
+            total_iterations,
+            cons_lambda = 100.,
+            cpl_lambda = 2.,
+        ):
         super(SPMTLoss, self).__init__()
         self.cfg = cfg
         self.cons_lambda = cons_lambda
+        self.cpl_lambda = cpl_lambda
 
         self.iterations = 0.
         self.ecr_warmup_iterations = ecr_warmup_iterations
@@ -70,7 +79,7 @@ class SPMTLoss(nn.Module):
         else:
             pseudo_loss = 0.
 
-        return self.rampup(self.cpl_warmup_iterations) * pseudo_loss
+        return self.rampup(self.cpl_warmup_iterations) * self.cpl_lambda * pseudo_loss
 
     def consistency_loss(self, pred, ema_logit):
         '''
