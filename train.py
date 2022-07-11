@@ -51,7 +51,7 @@ def main():
     # linearly scale learning rate with batch size
     args.lr = args.lr * (args.batch_size / 128)
 
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
     # set up networks
     net = ResNet(n=9)

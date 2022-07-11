@@ -25,7 +25,7 @@ class MTTrainer:
         pseudo_crit: torch.nn.Module = None,
         optimizer: torch.optim.Optimizer = None,
         scheduler: torch.optim.lr_scheduler.LambdaLR = None,
-        alpha: float = 0.95
+        alpha: float = 0.99
     ):
 
         self.train_loader = train_loader
@@ -33,6 +33,7 @@ class MTTrainer:
         self.test_loader = test_loader
         self.student = student
         self.teacher = teacher
+        self.alpha = alpha
 
         for param in self.teacher.parameters():
             param.detach_()

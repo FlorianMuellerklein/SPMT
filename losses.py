@@ -16,7 +16,11 @@ class SPMTLoss(nn.Module):
         self.cpl_warmup_iterations = cpl_warmup_iterations
         self.total_iterations = total_iterations
 
-        self.class_crit = nn.CrossEntropyLoss(reduction='mean', ignore_index=-1, label_smoothing = 0.1)
+        self.class_crit = nn.CrossEntropyLoss(
+            reduction='mean',
+            ignore_index=-1,
+            label_smoothing = 0.1
+        )
 
     def forward(
         self,
