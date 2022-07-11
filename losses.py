@@ -6,13 +6,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class SPMTLoss(nn.Module):
-    def __init__(self, cfg, warmup_iterations, total_iterations, cons_lambda = 100.):
+    def __init__(self, cfg, ecr_warmup_iterations, cpl_warmup_iterations, total_iterations, cons_lambda = 100.):
         super(SPMTLoss, self).__init__()
         self.cfg = cfg
         self.cons_lambda = cons_lambda
 
         self.iterations = 0.
-        self.warmup_iterations = warmup_iterations
+        self.ecr_warmup_iterations = ecr_warmup_iterations
+        self.cpl_warmup_iterations = cpl_warmup_iterations
         self.total_iterations = total_iterations
 
         self.class_crit = nn.CrossEntropyLoss(reduction='mean', ignore_index=-1, label_smoothing = 0.1)
@@ -65,7 +66,7 @@ class SPMTLoss(nn.Module):
         else:
             pseudo_loss = 0.
 
-        return self.rampup() * pseudo_loss
+        return self.rampup(self.cpl_warmup_iterations) * pseudo_loss
 
     def consistency_loss(self, pred, ema_logit):
         '''
@@ -85,15 +86,15 @@ class SPMTLoss(nn.Module):
             )
 
 
-            cons_loss = self.cons_lambda * self.rampup() * cons_loss
+            cons_loss = self.cons_lambda * self.rampup(self.ecr_warmup_iterations) * cons_loss
         else:
             cons_loss = torch.tensor([0.]).to(pred.device)
 
         return cons_loss
 
-    def rampup(self):
+    def rampup(self, warmup_iterations):
         '''Linear rampup function for loss scaling lambdas'''
-        return min(1., (float(self.iterations) / self.warmup_iterations))
+        return min(1., (float(self.iterations) / warmup_iterations))
 
     def entropy(self, dist):
         return -1 * torch.sum((dist + 1e-8) * torch.log(dist + 1e-8), axis=-1)

@@ -225,6 +225,7 @@ class MTTrainer:
         running_corrects = 0
 
         self.teacher.eval()
+        self.student.eval()
 
         with torch.no_grad():
             for data in self.test_loader:
@@ -235,7 +236,7 @@ class MTTrainer:
                 preds = self.teacher(imgs)
 
                 # track classification accuracy
-                _, predicted = torch.max(preds[0], -1)
+                _, predicted = torch.max(preds, -1)
                 total = targets.numel()
                 correct = (predicted == targets).sum().item()
 
@@ -249,9 +250,9 @@ class MTTrainer:
         return 1. - acc
 
 
-    def update_teacher(self, alpha=0.99):
+    def update_teacher(self):
         # use regular average until model weights stabilize
-        alpha = min(1 - 1 / (self.iterations['train'] + 1), alpha)
+        alpha = min(1. - 1 / (self.iterations['train'] + 1), self.alpha)
 
         for param_t, param_s in zip(self.teacher.parameters(), self.student.parameters()):
             param_t.data *= alpha                       # previous data multiplied by weight

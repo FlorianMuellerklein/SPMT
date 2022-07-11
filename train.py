@@ -14,11 +14,11 @@ from warmup_scheduler import AddWarmup
 
 parser = argparse.ArgumentParser(description='Semisupervised Training')
 parser.add_argument(
-    '--lr', default=0.05, type=float,
+    '--lr', default=0.1, type=float,
     help = 'learning rate'
 )
 parser.add_argument(
-    '--warmup', default=0, type=int,
+    '--warmup', default=1, type=int,
     help = 'number of epochs warmup learning rate'
 )
 parser.add_argument(
@@ -26,7 +26,7 @@ parser.add_argument(
     help = 'how large are mini-batches'
 )
 parser.add_argument(
-    '--epochs', default=350, type=int,
+    '--epochs', default=500, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
@@ -51,7 +51,7 @@ def main():
     # linearly scale learning rate with batch size
     args.lr = args.lr * (args.batch_size / 128)
 
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     # set up networks
     net = ResNet(n=9)
@@ -68,7 +68,8 @@ def main():
     # set up training loss and optimizer (using params from resnet paper)
     criterion = SPMTLoss(
         cfg = args,
-        warmup_iterations = 10. * len(train_loader),
+        ecr_warmup_iterations = 5. * len(train_loader),
+        cpl_warmup_iterations = 25 * len(train_loader),
         total_iterations = args.epochs * len(train_loader)
     )
 
@@ -76,7 +77,7 @@ def main():
         net.parameters(),
         lr = args.lr,
         momentum = 0.9,
-        weight_decay = 0.0001 / (args.batch_size / 128), # reduce wd if LR and BS goes up
+        weight_decay = 0.0003 / (args.batch_size / 128), # reduce wd if LR and BS goes up
         nesterov = True
     )
 
@@ -84,7 +85,7 @@ def main():
     scheduler = AddWarmup(
         torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max = (args.epochs + 25) * len(train_loader),
+            T_max = (args.epochs + args.warmup) * len(train_loader) + 25,
             eta_min = 0.,
             verbose = False
         ),
