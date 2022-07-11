@@ -1,6 +1,6 @@
 # Temporal Ensembling with Self Paced Learning for Semi-Supervised Learning
 
-This repo test the addition of self-paced learning to [Temporal Ensembling for Learning with Noisy Labels](https://arxiv.org/abs/2109.14563). The goal is increment the line of research to display that robust learning to noisy labels can enhance the self-paced filtering for the unlabeled data within SSL.
+This repo test the addition of self-paced learning to the [Mean Teacher SSL method](https://arxiv.org/abs/1703.01780). The goal is increment the line of research to display that [curriculum pseudo-labels](https://arxiv.org/abs/2001.06001) can improve SSL methods that employ consistency regularization.
 
 ![](imgs/decision_bounds.png)
 

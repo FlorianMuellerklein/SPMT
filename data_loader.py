@@ -40,22 +40,25 @@ class SemiSupervisedDataset(Dataset):
         self,
         dataset: vsn.datasets = None,
         valid: bool = False,
-        balance_rate: float = 0.25
+        balance_rate: float = 0.25,
+        semi_supervised: bool = True
     ):
         self.dataset = dataset
         self.mode = 'valid' if valid else 'train'
         self.balance_rate = balance_rate
+        self.semi_supervised = semi_supervised
 
-    def __getitem__(self, _: int) -> dict:
+    def __getitem__(self, idx: int) -> dict:
 
-        if np.random.random() > self.balance_rate:
-            # choose an unlabeled image
-            indices = np.where(self.dataset.targets == -1)[0]
-        else:
-            # choose a labeled image
-            indices = np.where(self.dataset.targets != -1)[0]
+        if self.semi_supervised:
+            if np.random.random() > self.balance_rate:
+                # choose an unlabeled image
+                indices = np.where(self.dataset.targets == -1)[0]
+            else:
+                # choose a labeled image
+                indices = np.where(self.dataset.targets != -1)[0]
 
-        idx = np.random.choice(indices)
+            idx = np.random.choice(indices)
 
         # load the data
         orig_img, targ = self.dataset[idx]
@@ -125,6 +128,7 @@ def get_data_loaders(batch_size: int = 32, num_labeled: int = 50000):
 
     train_dataset = SemiSupervisedDataset(
         dataset = labeled_trainset,
+        semi_supervised = semi_supervised
     )
 
     valid_dataset = SupervisedDataset(
