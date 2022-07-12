@@ -225,8 +225,10 @@ class MTTrainer:
         running_total = 0
         running_corrects = 0
 
-        self.teacher.eval()
-        self.student.eval()
+        if self.cfg.mt:
+            eval_net = self.teacher.eval()
+        else:
+            eval_net = self.student.eval()
 
         with torch.no_grad():
             for data in self.test_loader:
@@ -234,7 +236,7 @@ class MTTrainer:
                 imgs, targets = imgs.to(self.device), targets.to(self.device)
 
                 # get predictions
-                preds = self.teacher(imgs)
+                preds = eval_net(imgs)
 
                 # track classification accuracy
                 _, predicted = torch.max(preds, -1)

@@ -69,7 +69,7 @@ def main():
     criterion = SPMTLoss(
         cfg = args,
         ecr_warmup_iterations = 5. * len(train_loader),
-        cpl_warmup_iterations = 25 * len(train_loader),
+        cpl_warmup_iterations = 0.75 * args.epochs * len(train_loader),
         total_iterations = args.epochs * len(train_loader)
     )
 
@@ -112,7 +112,7 @@ def main():
     runner.train_network()
 
     training_type = 'mt' if args.mt else 'vanilla'
-    training_type = training_type + '_spl' if args.spl else ''
+    training_type += training_type + '_spl' if args.spl else ''
 
     df_acc = pd.DataFrame(runner.accuracies)
     df_loss = pd.DataFrame(runner.full_losses)

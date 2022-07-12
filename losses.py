@@ -64,18 +64,17 @@ class SPMTLoss(nn.Module):
         unlabeled_mask = targ_class.eq(-1)
 
         if ema_logit is not None:
+            # find the percentile mask
             with torch.no_grad():
-                confidences, _ = torch.softmax(ema_logit[unlabeled_mask], -1).max(-1)
-
+                confidences, pseudo_targets = torch.softmax(ema_logit[unlabeled_mask], -1).max(-1)
                 confidence_threshold = self.get_percentile(confidences)
-
                 mask = confidences >= confidence_threshold
 
-                pseudo_loss = F.cross_entropy(
-                    pred[unlabeled_mask][mask],
-                    torch.argmax(ema_logit[unlabeled_mask][mask], -1),
-                    label_smoothing=0.1
-                )
+            pseudo_loss = F.cross_entropy(
+                pred[unlabeled_mask][mask],
+                pseudo_targets[mask],
+                label_smoothing=0.1
+            )
         else:
             pseudo_loss = 0.
 
@@ -85,11 +84,8 @@ class SPMTLoss(nn.Module):
         '''
         Consistency loss component consisting of ECR similar to
         https://arxiv.org/abs/1703.01780 and https://arxiv.org/abs/2109.14563
-
-        Self paced learning strategy from https://arxiv.org/pdf/2109.00650v1.pdf
         '''
         if (ema_logit is not None):
-
 
             # calculate the unsupervised loss for the labeled portion
             cons_loss = F.mse_loss(
@@ -97,7 +93,6 @@ class SPMTLoss(nn.Module):
                 F.softmax(ema_logit, -1),
                 reduction='mean'
             )
-
 
             cons_loss = self.cons_lambda * self.rampup(self.ecr_warmup_iterations) * cons_loss
         else:
