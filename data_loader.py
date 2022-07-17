@@ -122,7 +122,6 @@ def get_data_loaders(batch_size: int = 32, num_labeled: int = 50000):
     semi_supervised = num_labeled < len(labeled_trainset)
 
     if semi_supervised:
-
         _, unlabeled_idx = balanced_class_split(labeled_trainset.targets)
         labeled_trainset.targets[unlabeled_idx] = -1
 

@@ -10,8 +10,8 @@ Example decision boundaries on the two moon dataset with only 8 labeled data poi
 
 | Methods                 | N Labeled Data | Testset Error |
 | ----------------------- | -------------- | ------------- |
-| MT + CPL (this method)  | 4000           | -         |
-| MT (this implmnt)       | 4000           | 0.128          |
+| MT + CPL (this method)  | 4000           | 0.123         |
+| MT (this implmnt)       | 4000           | 0.128         |
 | Supervised              | 4000           | 0.20          |
 | Supervised              | 50000          | 0.07          |
 

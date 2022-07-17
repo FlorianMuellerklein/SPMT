@@ -52,7 +52,8 @@ class MTTrainer:
         # loss tracking
         self.full_losses = {'train': [], 'valid': []}
         self.accuracies = {'train': [], 'valid': []}
-        self.unsup_losses = {'train': [], 'valid': []}
+        self.ecr_losses = {'train': [], 'valid': []}
+        self.cpl_losses = {'train': [], 'valid': []}
         self.pseudo_batch_sizes = []
         self.v_values = []
 
@@ -109,7 +110,8 @@ class MTTrainer:
         running_total = 0
         running_corrects = 0
 
-        running_unsup_loss = 0.
+        running_ecr_loss = 0.
+        running_cpl_loss = 0.
 
         if mode == 'train':
             # zero gradients
@@ -129,28 +131,21 @@ class MTTrainer:
             imgs, targets = data['img'], data['targ']
             imgs, targets = imgs.to(self.device), targets.to(self.device)
 
-            if mode == 'train' and self.cfg.mt:
+            if mode == 'train' and (self.cfg.ecr or self.cfg.spl):
                 ema_imgs = data['ema_img']
                 ema_imgs = ema_imgs.to(self.device)
-
-                # fig, ax = plt.subplots(1,2)
-                # ax[0].imshow(make_grid(imgs[:5].cpu(), normalize=True).permute(1,2,0))
-                # ax[1].imshow(make_grid(ema_imgs[:5].cpu(), normalize=True).permute(1,2,0))
-                # plt.show()
 
                 with torch.no_grad():
                     ema_logit = self.teacher(ema_imgs)
 
-                #aug_preds = self.student(ema_imgs)
             else:
                 ema_logit = None
-                #aug_preds = None
 
             # get predictions
             preds = self.student(imgs)
 
             # calculate loss
-            supervised_loss, cons_loss, pseudo_loss = self.crit(preds, targets, ema_logit)
+            supervised_loss, cons_loss, pseudo_loss = self.crit(preds, targets, ema_logit, training_mode = mode=='train')
 
             loss = supervised_loss + cons_loss + pseudo_loss
 
@@ -170,9 +165,8 @@ class MTTrainer:
                 # step the LR scheduler
                 self.scheduler.step()
 
-                if self.cfg.mt:
-                    # update teacher
-                    self.update_teacher()
+                # update teacher
+                self.update_teacher()
 
             # track statistics
             predicted = torch.argmax(preds, 1)
@@ -181,7 +175,8 @@ class MTTrainer:
             correct = (predicted[mask] == targets[mask]).sum().item()
 
             running_loss += supervised_loss.item()
-            running_unsup_loss += cons_loss.item()
+            running_ecr_loss += cons_loss.item()
+            running_cpl_loss += pseudo_loss.item()
             running_total += total
             running_corrects += correct
 
@@ -206,15 +201,17 @@ class MTTrainer:
                     break
 
         print(
-            '\n' + 'Avg Class: {:.4} | Acc: {:.2} | Unsup Loss: {:.4}'.format(
+            '\n' + 'Avg Class: {:.4} | Acc: {:.2} | ECR Loss: {:.4} | CPL Loss: {:.4}'.format(
                 running_loss / n_batches,
                 running_corrects / running_total,
-                running_unsup_loss / n_batches
+                running_ecr_loss / n_batches,
+                running_cpl_loss / n_batches
             )
         )
 
         self.full_losses[mode].append(running_loss / n_batches)
-        self.unsup_losses[mode].append(running_unsup_loss / n_batches)
+        self.ecr_losses[mode].append(running_ecr_loss / n_batches)
+        self.cpl_losses[mode].append(running_cpl_loss / n_batches)
         self.accuracies[mode].append(running_corrects / (running_total + 1e-8))
 
         return running_corrects / (running_total + 1e-8)
@@ -225,10 +222,7 @@ class MTTrainer:
         running_total = 0
         running_corrects = 0
 
-        if self.cfg.mt:
-            eval_net = self.teacher.eval()
-        else:
-            eval_net = self.student.eval()
+        eval_net = self.student.eval()
 
         with torch.no_grad():
             for data in self.test_loader:

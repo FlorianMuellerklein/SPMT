@@ -26,7 +26,7 @@ parser.add_argument(
     help = 'how large are mini-batches'
 )
 parser.add_argument(
-    '--epochs', default=500, type=int,
+    '--epochs', default=350, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
@@ -36,8 +36,11 @@ parser.add_argument(
 parser.add_argument('--spl', action='store_true',
     help = 'whether to use self paced learning'
 )
-parser.add_argument('--mt', action='store_true',
+parser.add_argument('--ecr', action='store_true',
     help = 'whether to use mean teacher training'
+)
+parser.add_argument('--cpl', action='store_true',
+    help = 'whether to use curriculum pseudo labeling'
 )
 parser.add_argument('--debug', action='store_true',
     help = 'whether to use soft pseudo labels training'
@@ -68,9 +71,10 @@ def main():
     # set up training loss and optimizer (using params from resnet paper)
     criterion = SPMTLoss(
         cfg = args,
-        ecr_warmup_iterations = 5. * len(train_loader),
-        cpl_warmup_iterations = 0.75 * args.epochs * len(train_loader),
-        total_iterations = args.epochs * len(train_loader)
+        ecr_warmup_iterations = 5. * len(train_loader), # warmup ensemble consistency for 25 epochs
+        cpl_warmup_iterations = 50 * len(train_loader), # warmup curriculum pseudos for 50 epochs
+        cpl_iter_offset = 50. * len(train_loader), # start cpl loss after 50 epochs
+        total_iterations = args.epochs * len(train_loader),
     )
 
     optimizer = optim.SGD(
@@ -85,7 +89,7 @@ def main():
     scheduler = AddWarmup(
         torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max = (args.epochs + args.warmup) * len(train_loader) + 25,
+            T_max = (args.epochs + args.warmup) * len(train_loader) + 5,
             eta_min = 0.,
             verbose = False
         ),
@@ -111,16 +115,18 @@ def main():
     # train and test the network
     runner.train_network()
 
-    training_type = 'mt' if args.mt else 'vanilla'
+    training_type = 'ecr' if args.ecr else 'vanilla'
     training_type += training_type + '_spl' if args.spl else ''
 
     df_acc = pd.DataFrame(runner.accuracies)
     df_loss = pd.DataFrame(runner.full_losses)
-    df_unsup_loss = pd.DataFrame(runner.unsup_losses)
+    df_ecr_loss = pd.DataFrame(runner.ecr_losses)
+    df_cpl_loss = pd.DataFrame(runner.cpl_losses)
 
     df_acc.to_csv('results/{}_accuracy_curves_{}.csv'.format(args.model_name, training_type))
     df_loss.to_csv('results/{}_loss_curves_{}.csv'.format(args.model_name, training_type))
-    df_unsup_loss.to_csv('results/{}_unsuploss_curves_{}.csv'.format(args.model_name, training_type))
+    df_ecr_loss.to_csv('results/{}_ecr_curves_{}.csv'.format(args.model_name, training_type))
+    df_cpl_loss.to_csv('results/{}_cpl_curves_{}.csv'.format(args.model_name, training_type))
 
     # get the test set performance
     test_err = runner.test_network()
