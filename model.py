@@ -145,14 +145,13 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
 
-        x = self.avg_pool(x).squeeze()
-        x = self.dropout(x)
+        feats = self.avg_pool(x).squeeze()
 
         # decoupled classification and consistency
-        classification_out = self.classification_out(x)
+        classification_out = self.classification_out(self.dropout(feats))
         #consistency_out = self.consistency_out(x)
 
-        return classification_out#, consistency_out
+        return classification_out, feats
 
     def enable_dropout(self):
         """ Function to enable the dropout layers during test-time """

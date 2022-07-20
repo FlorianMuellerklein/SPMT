@@ -36,6 +36,9 @@ parser.add_argument(
 parser.add_argument('--spl', action='store_true',
     help = 'whether to use self paced learning'
 )
+parser.add_argument('--mr', action='store_true',
+    help = 'whether to use manifold regularization'
+)
 parser.add_argument('--ecr', action='store_true',
     help = 'whether to use mean teacher training'
 )
@@ -116,6 +119,7 @@ def main():
     runner.train_network()
 
     training_type = 'ecr' if args.ecr else 'vanilla'
+    training_type = 'mr' if args.mr else 'vanilla'
     training_type += training_type + '_spl' if args.spl else ''
 
     df_acc = pd.DataFrame(runner.accuracies)

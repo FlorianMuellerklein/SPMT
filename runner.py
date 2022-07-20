@@ -131,21 +131,23 @@ class MTTrainer:
             imgs, targets = data['img'], data['targ']
             imgs, targets = imgs.to(self.device), targets.to(self.device)
 
-            if mode == 'train' and (self.cfg.ecr or self.cfg.spl):
+            if mode == 'train' and (self.cfg.ecr or self.cfg.spl or self.cfg.mr):
                 ema_imgs = data['ema_img']
                 ema_imgs = ema_imgs.to(self.device)
 
                 with torch.no_grad():
-                    ema_logit = self.teacher(ema_imgs)
+                    ema_logit, features = self.teacher(ema_imgs)
 
             else:
-                ema_logit = None
+                ema_logit, features = None, None
 
             # get predictions
-            preds = self.student(imgs)
+            preds, _ = self.student(imgs)
 
             # calculate loss
-            supervised_loss, cons_loss, pseudo_loss = self.crit(preds, targets, ema_logit, training_mode = mode=='train')
+            supervised_loss, cons_loss, pseudo_loss = self.crit(
+                preds, targets, ema_logit, features, training_mode = mode=='train'
+            )
 
             loss = supervised_loss + cons_loss + pseudo_loss
 
@@ -230,7 +232,7 @@ class MTTrainer:
                 imgs, targets = imgs.to(self.device), targets.to(self.device)
 
                 # get predictions
-                preds = eval_net(imgs)
+                preds, _ = eval_net(imgs)
 
                 # track classification accuracy
                 _, predicted = torch.max(preds, -1)
