@@ -25,7 +25,6 @@ class MTTrainer:
         pseudo_crit: torch.nn.Module = None,
         optimizer: torch.optim.Optimizer = None,
         scheduler: torch.optim.lr_scheduler.LambdaLR = None,
-        alpha: float = 0.99
     ):
 
         self.train_loader = train_loader
@@ -33,7 +32,6 @@ class MTTrainer:
         self.test_loader = test_loader
         self.student = student
         self.teacher = teacher
-        self.alpha = alpha
 
         for param in self.teacher.parameters():
             param.detach_()
@@ -131,7 +129,7 @@ class MTTrainer:
             imgs, targets = data['img'], data['targ']
             imgs, targets = imgs.to(self.device), targets.to(self.device)
 
-            if mode == 'train' and (self.cfg.ecr or self.cfg.spl or self.cfg.mr):
+            if mode == 'train' and (self.cfg.cpl or self.cfg.mr):
                 ema_imgs = data['ema_img']
                 ema_imgs = ema_imgs.to(self.device)
 
@@ -143,6 +141,17 @@ class MTTrainer:
 
             # get predictions
             preds, _ = self.student(imgs)
+
+            if i == 0 and epoch % 25 == 0 and mode == 'train':
+
+                sims = features / torch.linalg.norm(features, dim=-1).unsqueeze(1)
+                sims = sims @ sims.T
+
+                plt.title('Cosine Sim between embeddings epoch-{}'.format(epoch))
+                plt.hist(sims[0].cpu().numpy(), density=True)
+                plt.xlim([-1,1])
+                plt.savefig('imgs/similarity_hist_e{}.png'.format(epoch))
+                plt.clf()
 
             # calculate loss
             supervised_loss, cons_loss, pseudo_loss = self.crit(
@@ -251,7 +260,7 @@ class MTTrainer:
 
     def update_teacher(self):
         # use regular average until model weights stabilize
-        alpha = min(1. - 1 / (self.iterations['train'] + 1), self.alpha)
+        alpha = min(1. - 1 / (self.iterations['train'] + 1), self.cfg.alpha)
 
         for param_t, param_s in zip(self.teacher.parameters(), self.student.parameters()):
             param_t.data *= alpha                       # previous data multiplied by weight

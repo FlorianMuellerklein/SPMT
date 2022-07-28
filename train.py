@@ -1,4 +1,5 @@
 import argparse
+from copy import deepcopy
 
 import pandas as pd
 
@@ -18,6 +19,22 @@ parser.add_argument(
     help = 'learning rate'
 )
 parser.add_argument(
+    '--wd', default=2e-4, type=float,
+    help = 'weight decay'
+)
+parser.add_argument(
+    '--alpha', default=0.99, type=float,
+    help = 'alpha for exponential moving average'
+)
+parser.add_argument(
+    '--mr_lambda', default=100., type=float,
+    help = 'scaling factor on manifold regularization'
+)
+parser.add_argument(
+    '--cpl_lambda', default=0.5, type=float,
+    help = 'scaling factor on curriculum pseudo labels'
+)
+parser.add_argument(
     '--warmup', default=1, type=int,
     help = 'number of epochs warmup learning rate'
 )
@@ -26,29 +43,35 @@ parser.add_argument(
     help = 'how large are mini-batches'
 )
 parser.add_argument(
-    '--epochs', default=350, type=int,
+    '--epochs', default=400, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
     '--num_labeled', default=50000, type=int,
     help = 'how many labeled images to use from CIFAR10'
 )
-parser.add_argument('--spl', action='store_true',
+parser.add_argument(
+    '--spl', action='store_true',
     help = 'whether to use self paced learning'
 )
-parser.add_argument('--mr', action='store_true',
+parser.add_argument(
+    '--mr', action='store_true',
     help = 'whether to use manifold regularization'
 )
-parser.add_argument('--ecr', action='store_true',
-    help = 'whether to use mean teacher training'
+parser.add_argument(
+    '--knn', default=1, type=int,
+    help = 'how many neighbors to use in manifold regularization'
 )
-parser.add_argument('--cpl', action='store_true',
+parser.add_argument(
+    '--cpl', action='store_true',
     help = 'whether to use curriculum pseudo labeling'
 )
-parser.add_argument('--debug', action='store_true',
+parser.add_argument(
+    '--debug', action='store_true',
     help = 'whether to use soft pseudo labels training'
 )
-parser.add_argument('--model_name', type=str, default='ResNet56',
+parser.add_argument(
+    '--model_name', type=str, default='ResNet56',
     help = 'model name for saving experiment results'
 )
 args = parser.parse_args()
@@ -61,9 +84,9 @@ def main():
 
     # set up networks
     net = ResNet(n=9)
-    net = net.to(device)
+    ema_net = deepcopy(net)
 
-    ema_net = ResNet(n=9)
+    net = net.to(device)
     ema_net = ema_net.to(device)
 
     train_loader, valid_loader, test_loader = get_data_loaders(
@@ -74,9 +97,10 @@ def main():
     # set up training loss and optimizer (using params from resnet paper)
     criterion = SPMTLoss(
         cfg = args,
-        ecr_warmup_iterations = 5. * len(train_loader), # warmup ensemble consistency for 25 epochs
-        cpl_warmup_iterations = 50 * len(train_loader), # warmup curriculum pseudos for 50 epochs
-        cpl_iter_offset = 50. * len(train_loader), # start cpl loss after 50 epochs
+        mr_lambda = args.mr_lambda,
+        ecr_warmup_iterations = 5. * len(train_loader),  # warmup ensemble consistency for 5 epochs
+        cpl_warmup_iterations = 50. * len(train_loader), # warmup curriculum pseudos for 50 epochs
+        cpl_iter_offset = 50. * len(train_loader),       # start cpl loss after 50 epochs
         total_iterations = args.epochs * len(train_loader),
     )
 
@@ -84,7 +108,7 @@ def main():
         net.parameters(),
         lr = args.lr,
         momentum = 0.9,
-        weight_decay = 0.0002 / (args.batch_size / 128), # reduce wd if LR and BS goes up
+        weight_decay = args.wd / (args.batch_size / 128), # reduce wd if LR and BS goes up
         nesterov = True
     )
 
@@ -92,7 +116,7 @@ def main():
     scheduler = AddWarmup(
         torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max = (args.epochs + args.warmup) * len(train_loader) + 5,
+            T_max = (args.epochs - args.warmup) * len(train_loader),
             eta_min = 0.,
             verbose = False
         ),
@@ -118,8 +142,7 @@ def main():
     # train and test the network
     runner.train_network()
 
-    training_type = 'ecr' if args.ecr else 'vanilla'
-    training_type = 'mr' if args.mr else 'vanilla'
+    training_type = 'mr' + '_k-{}_'.format(args.knn) if args.mr else 'vanilla'
     training_type += training_type + '_spl' if args.spl else ''
 
     df_acc = pd.DataFrame(runner.accuracies)
@@ -136,7 +159,7 @@ def main():
     test_err = runner.test_network()
 
     results = '{},{}'.format(
-        training_type, test_err
+        args.model_name + '_' + training_type, test_err
     )
 
     with open('results/results.csv', 'a+') as f:

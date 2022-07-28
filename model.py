@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 
 def make_layer(
-    in_channels: int,
-    out_channels: int,
-    blocks: int = 2,
-    downsample: bool = False,
-    residual: bool = True,
-) -> torch.nn.Sequential:
+        in_channels: int,
+        out_channels: int,
+        blocks: int = 2,
+        downsample: bool = False,
+        residual: bool = True,
+    ) -> torch.nn.Sequential:
     """
     Builder function for making Residual blocks
 
