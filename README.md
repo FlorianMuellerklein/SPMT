@@ -12,7 +12,7 @@ Example decision boundaries on the two moon dataset with only 8 labeled data poi
 | ----------------------- | -------------- | ------------- |
 | MR (KNN 5) + CPL        | 4000           | 0.139         |
 | MR (KNN 5)              | 4000           | 0.142         |
-| MT + CPL (this method)  | 4000           | -             |
+| MT + CPL                | 4000           | -             |
 | MT (this implmnt)       | 4000           | 0.158         |
 | Supervised              | 4000           | 0.20          |
 | Supervised              | 50000          | 0.07          |
