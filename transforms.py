@@ -3,6 +3,7 @@ from torchvision import transforms
 # transforms for labeled training and validation
 tforms = {
     'train': transforms.Compose([
+        transforms.ToPILImage(),
         transforms.RandomCrop(size=32, padding=4),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.ToTensor(),
@@ -19,6 +20,7 @@ tforms = {
         )
     ]),
     'HA': transforms.Compose([
+        transforms.ToPILImage(),
         transforms.ColorJitter(brightness=.1, hue=.1),
         transforms.RandomAffine(degrees=(-10, 10), shear=(-15, 15), scale=(0.8, 1.2)),
         transforms.RandomCrop(size=32, padding=4),

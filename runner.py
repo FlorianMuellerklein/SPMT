@@ -1,4 +1,5 @@
 
+from calendar import c
 import sys
 import time
 import argparse
@@ -8,6 +9,8 @@ import numpy as np
 import torch
 import torchvision as vsn
 from torchvision.utils import make_grid
+
+from sklearn.manifold import TSNE
 
 import matplotlib.pyplot as plt
 
@@ -53,7 +56,7 @@ class MTTrainer:
         self.ecr_losses = {'train': [], 'valid': []}
         self.cpl_losses = {'train': [], 'valid': []}
         self.pseudo_batch_sizes = []
-        self.v_values = []
+        self.valid_err = []
 
         # rampup
         self.loss_rampup = np.linspace(0, 30, cfg.epochs // 2)
@@ -84,7 +87,8 @@ class MTTrainer:
                 _ = self.run_epoch(mode = 'train', epoch = e)
 
                 with torch.no_grad():
-                    _ = self.run_epoch(mode = 'valid', epoch = e)
+                    v_error = self.run_epoch(mode = 'valid', epoch = e)
+                self.valid_err.append(1. - v_error)
 
                 if self.cfg.debug and e > 1:
                     break
@@ -94,6 +98,9 @@ class MTTrainer:
         except KeyboardInterrupt:
             pass
 
+        self.update_bn()
+
+        return min(self.valid_err)
 
     def run_epoch(self, mode: str, epoch: int) -> float:
         '''
@@ -141,17 +148,6 @@ class MTTrainer:
 
             # get predictions
             preds, _ = self.student(imgs)
-
-            if i == 0 and epoch % 25 == 0 and mode == 'train':
-
-                sims = features / torch.linalg.norm(features, dim=-1).unsqueeze(1)
-                sims = sims @ sims.T
-
-                plt.title('Cosine Sim between embeddings epoch-{}'.format(epoch))
-                plt.hist(sims[0].cpu().numpy(), density=True)
-                plt.xlim([-1,1])
-                plt.savefig('imgs/similarity_hist_e{}.png'.format(epoch))
-                plt.clf()
 
             # calculate loss
             supervised_loss, cons_loss, pseudo_loss = self.crit(
@@ -228,35 +224,42 @@ class MTTrainer:
         return running_corrects / (running_total + 1e-8)
 
 
-    def test_network(self) -> float:
+    def make_tsne(self, name) -> float:
 
-        running_total = 0
-        running_corrects = 0
+        if self.cfg.mr:
+            eval_net = self.teacher.eval()
+        else:
+            eval_net = self.student.eval()
 
-        eval_net = self.student.eval()
+        testset_feats = []
+        testset_targs = []
 
         with torch.no_grad():
-            for data in self.test_loader:
+            for data in self.valid_loader:
                 imgs, targets = data
                 imgs, targets = imgs.to(self.device), targets.to(self.device)
 
                 # get predictions
-                preds, _ = eval_net(imgs)
+                _, features = eval_net(imgs)
 
-                # track classification accuracy
-                _, predicted = torch.max(preds, -1)
-                total = targets.numel()
-                correct = (predicted == targets).sum().item()
+                testset_feats.append(features.cpu().numpy())
+                testset_targs.extend(targets.cpu().numpy().tolist())
 
-                running_total += total
-                running_corrects += correct
+        testset_feats = np.concatenate(testset_feats)
 
-        acc = running_corrects / running_total
-        print()
-        print('Test Performance: {} Acc / {} err'.format(acc, 1. - acc))
+        tsne = TSNE(n_components=2, learning_rate='auto', init='random').fit_transform(testset_feats)
 
-        return 1. - acc
+        plt.scatter(tsne[:,0], tsne[:,1], c=np.array(testset_targs), edgecolors='black')
+        plt.xticks([])
+        plt.yticks([])
+        plt.grid(linestyle=':')
+        plt.savefig('imgs/tsne_{}.png'.format(name))
 
+    def update_bn(self,):
+        self.teacher.train()
+
+        for data in self.train_loader:
+            _, _ = self.teacher(data['img'].to(self.device))
 
     def update_teacher(self):
         # use regular average until model weights stabilize

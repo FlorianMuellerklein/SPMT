@@ -16,8 +16,7 @@ class SPMTLoss(nn.Module):
             total_iterations: int,
 
             mr_lambda: float = 100.,
-            cpl_lambda: float = 0.5,
-            label_smoothing: float = 0.1,
+            cpl_lambda: float = 0.75,
 
         ):
         super(SPMTLoss, self).__init__()
@@ -25,7 +24,6 @@ class SPMTLoss(nn.Module):
         self.cfg = cfg
         self.mr_lambda = mr_lambda
         self.cpl_lambda = cpl_lambda
-        self.label_smoothing = label_smoothing
         self.cpl_iter_offset: int = cpl_iter_offset
 
         self.iterations = 0.
@@ -39,7 +37,6 @@ class SPMTLoss(nn.Module):
         self.class_crit = nn.CrossEntropyLoss(
             reduction='mean',
             ignore_index=-1,
-            label_smoothing = label_smoothing
         )
 
 
@@ -141,6 +138,7 @@ class SPMTLoss(nn.Module):
     def get_percentile(self, confidences, cur_iter):
         # add percentials by 10% at a time
         ratio = math.ceil((cur_iter / self.total_iterations) * 10) *  10.
+        ratio = min(0.5, ratio)
         quantile = max(0., 1. - (ratio / 100.))
 
         return torch.quantile(confidences, quantile, interpolation='linear')

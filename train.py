@@ -31,7 +31,7 @@ parser.add_argument(
     help = 'scaling factor on manifold regularization'
 )
 parser.add_argument(
-    '--cpl_lambda', default=0.5, type=float,
+    '--cpl_lambda', default=.75, type=float,
     help = 'scaling factor on curriculum pseudo labels'
 )
 parser.add_argument(
@@ -39,11 +39,11 @@ parser.add_argument(
     help = 'number of epochs warmup learning rate'
 )
 parser.add_argument(
-    '--batch_size', default=128, type=int,
+    '--batch_size', default=256, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
-    '--epochs', default=400, type=int,
+    '--epochs', default=225, type=int,
     help = 'how large are mini-batches'
 )
 parser.add_argument(
@@ -80,7 +80,7 @@ def main():
     # linearly scale learning rate with batch size
     args.lr = args.lr * (args.batch_size / 128)
 
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     # set up networks
     net = ResNet(n=9)
@@ -89,7 +89,10 @@ def main():
     net = net.to(device)
     ema_net = ema_net.to(device)
 
-    train_loader, valid_loader, test_loader = get_data_loaders(
+    net = torch.nn.DataParallel(net, device_ids=[0, 1])
+    ema_net = torch.nn.DataParallel(ema_net, device_ids=[0, 1])
+
+    train_loader, valid_loader = get_data_loaders(
         args.batch_size,
         args.num_labeled
     )
@@ -108,7 +111,7 @@ def main():
         net.parameters(),
         lr = args.lr,
         momentum = 0.9,
-        weight_decay = args.wd / (args.batch_size / 128), # reduce wd if LR and BS goes up
+        weight_decay = args.wd,
         nesterov = True
     )
 
@@ -116,7 +119,7 @@ def main():
     scheduler = AddWarmup(
         torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max = (args.epochs - args.warmup) * len(train_loader),
+            T_max = (args.epochs - args.warmup + 10) * len(train_loader),
             eta_min = 0.,
             verbose = False
         ),
@@ -129,7 +132,6 @@ def main():
     runner = MTTrainer(
         train_loader = train_loader,
         valid_loader = valid_loader,
-        test_loader = test_loader,
         student = net,
         teacher = ema_net,
         crit = criterion,
@@ -140,10 +142,11 @@ def main():
     )
 
     # train and test the network
-    runner.train_network()
+    test_err = runner.train_network()
+    runner.make_tsne()
 
     training_type = 'mr' + '_k-{}_'.format(args.knn) if args.mr else 'vanilla'
-    training_type += training_type + '_spl' if args.spl else ''
+    training_type += training_type + '_cpl' if args.cpl else ''
 
     df_acc = pd.DataFrame(runner.accuracies)
     df_loss = pd.DataFrame(runner.full_losses)
@@ -154,9 +157,6 @@ def main():
     df_loss.to_csv('results/{}_loss_curves_{}.csv'.format(args.model_name, training_type))
     df_ecr_loss.to_csv('results/{}_ecr_curves_{}.csv'.format(args.model_name, training_type))
     df_cpl_loss.to_csv('results/{}_cpl_curves_{}.csv'.format(args.model_name, training_type))
-
-    # get the test set performance
-    test_err = runner.test_network()
 
     results = '{},{}'.format(
         args.model_name + '_' + training_type, test_err

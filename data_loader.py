@@ -14,16 +14,19 @@ class SupervisedDataset(Dataset):
 
     def __init__(
         self,
-        labeled_data: vsn.datasets = None,
+        data: np.array = None,
+        targets: np.array = None,
         valid: bool = False,
     ):
-        self.labeled_data = labeled_data
+        self.data = data
+        self.targets = targets
         self.mode = 'valid' if valid else 'train'
 
     def __getitem__(self, idx: int) -> dict:
         np.random.seed()
         # load an augment the image
-        orig_img, targ = self.labeled_data[idx]
+        orig_img = self.data[idx]
+        targ = self.targets[idx]
         img = tforms[self.mode](orig_img)
 
         return {
@@ -32,18 +35,20 @@ class SupervisedDataset(Dataset):
         }
 
     def __len__(self):
-        return len(self.labeled_data)
+        return len(self.data)
 
 class SemiSupervisedDataset(Dataset):
 
     def __init__(
         self,
-        dataset: vsn.datasets = None,
+        data: np.array = None,
+        targets: np.array = None,
         valid: bool = False,
-        balance_rate: float = 0.25,
+        balance_rate: float = 0.5,
         semi_supervised: bool = True
     ):
-        self.dataset = dataset
+        self.data = data
+        self.targets = targets
         self.mode = 'valid' if valid else 'train'
         self.balance_rate = balance_rate
         self.semi_supervised = semi_supervised
@@ -53,15 +58,16 @@ class SemiSupervisedDataset(Dataset):
         if self.semi_supervised:
             if np.random.random() > self.balance_rate:
                 # choose an unlabeled image
-                indices = np.where(self.dataset.targets == -1)[0]
+                indices = np.where(self.targets == -1)[0]
             else:
                 # choose a labeled image
-                indices = np.where(self.dataset.targets != -1)[0]
+                indices = np.where(self.targets != -1)[0]
 
             idx = np.random.choice(indices)
 
         # load the data
-        orig_img, targ = self.dataset[idx]
+        orig_img = self.data[idx]
+        targ = self.targets[idx]
         # augment image twice
         img = tforms[self.mode](orig_img)
         ema_img = tforms[self.mode](orig_img)
@@ -74,7 +80,7 @@ class SemiSupervisedDataset(Dataset):
         }
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.data)
 
 def balanced_class_split(labeld_targs: np.array) -> Tuple[np.array, np.array]:
     labels = np.array(labeld_targs)
@@ -96,42 +102,49 @@ def balanced_class_split(labeld_targs: np.array) -> Tuple[np.array, np.array]:
 
     return labeled_idx, unlabeled_idx
 
-def get_data_loaders(batch_size: int = 32, num_labeled: int = 50000):
+def get_data_loaders(batch_size: int = 32, num_labeled: int = 30000):
     # get the labeled data
-    labeled_trainset = vsn.datasets.CIFAR10(
+    trainset = vsn.datasets.CIFAR10(
         root='./data', train=True,
         download=True, transform=None
     )
 
     # get the validation dataset
-    validset = vsn.datasets.CIFAR10(
-        root='../data', train=True,
+    testset = vsn.datasets.CIFAR10(
+        root='../data', train=False,
         download=True, transform=None
     )
 
+    all_data = np.concatenate((trainset.data, testset.data))
+    all_targets = np.concatenate((trainset.targets, testset.targets))
+
+    print(len(all_data), len(all_targets))
+
     # ensure no overlap in train and valid
-    valid_idx = np.random.randint(len(labeled_trainset), size=int(len(labeled_trainset) * 0.1))
-    train_idx = [idx for idx in range(len(labeled_trainset)) if idx not in valid_idx]
+    valid_idx = np.random.randint(len(all_targets), size=int(len(all_targets) * 0.5))
+    train_idx = [idx for idx in range(len(all_targets)) if idx not in valid_idx]
 
-    validset.data = np.array(validset.data)[valid_idx]
-    validset.targets = np.array(validset.targets)[valid_idx]
+    valid_data = all_data[valid_idx]
+    valid_targets = all_targets[valid_idx]
 
-    labeled_trainset.data = np.array(labeled_trainset.data)[train_idx]
-    labeled_trainset.targets = np.array(labeled_trainset.targets)[train_idx]
+    train_data = all_data[train_idx]
+    train_targets = all_targets[train_idx]
 
-    semi_supervised = num_labeled < len(labeled_trainset)
+    semi_supervised = num_labeled < len(train_targets)
 
     if semi_supervised:
-        _, unlabeled_idx = balanced_class_split(labeled_trainset.targets)
-        labeled_trainset.targets[unlabeled_idx] = -1
+        _, unlabeled_idx = balanced_class_split(train_targets)
+        train_targets[unlabeled_idx] = -1
 
     train_dataset = SemiSupervisedDataset(
-        dataset = labeled_trainset,
+        data = train_data,
+        targets = train_targets,
         semi_supervised = semi_supervised
     )
 
     valid_dataset = SupervisedDataset(
-        labeled_data=validset,
+        data = valid_data,
+        targets = valid_targets,
         valid=True
     )
 
@@ -152,16 +165,4 @@ def get_data_loaders(batch_size: int = 32, num_labeled: int = 50000):
         pin_memory=True
     )
 
-    # get the testset
-    testset = vsn.datasets.CIFAR10(
-        root='./data', train=False,
-        download=True,
-        transform=tforms['valid']
-    )
-
-    test_loader = torch.utils.data.DataLoader(
-        testset, batch_size=batch_size,
-        shuffle=False, num_workers=2
-    )
-
-    return train_loader, valid_loader, test_loader
+    return train_loader, valid_loader
